@@ -6,13 +6,13 @@
 
 :root {
   /* Brand */
-  --primary: oklch(0.205 0 0);
-  --primary-hover: #2d5ce6;
+  --primary: oklch(72.708% 0.15478 48.289);
+  --primary-hover: #ec7028;
   --primary-foreground: oklch(0.985 0 0);
 
   /* Accent */
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: #ec7028;
+  --accent-foreground: oklch(0.97 0 0);
 
   /* Background & Surface */
   --card: oklch(1 0 0);
@@ -38,7 +38,7 @@
   --info-bg: #cffafe;
 
   /* Sidebar */
-  --sidebar-bg: #0f172a;
+  --sidebar-bg: #f18d22;
   --sidebar-fg: #cbd5e1;
   --sidebar-active-bg: #3b6ef8;
   --sidebar-active-fg: #ffffff;
@@ -68,7 +68,7 @@
   --sidebar-foreground: #cbd5e1;
   --sidebar-primary: #3b6ef8;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
+  --sidebar-accent: #ec7028;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #3b6ef8;

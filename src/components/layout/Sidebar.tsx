@@ -74,7 +74,7 @@ export function AppSidebar({ role, navItems }: AppSidebarProps) {
                         S
                     </span>
                     <div className="flex-1 min-w-0">
-                        <span className="block text-sm font-bold text-[--sidebar-foreground] truncate">Schooler</span>
+                        <span className="block text-sm font-bold text-[--sidebar-foreground] truncate">Onushilon</span>
                         <span className="block text-[10px] text-[--sidebar-foreground]/50 capitalize">{roleLabel[role]}</span>
                     </div>
                 </div>

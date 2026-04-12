@@ -151,7 +151,7 @@ export default function RegisterPage() {
                         </div>
                     </div>
                     <h1 className="text-2xl font-bold text-[--foreground]">Complete Your Registration</h1>
-                    <p className="text-sm text-[--muted-foreground]">Set a password to activate your Schooler account</p>
+                    <p className="text-sm text-[--muted-foreground]">Set a password to activate your Onushilon account</p>
                 </div>
 
                 <div className="card p-6 space-y-5">

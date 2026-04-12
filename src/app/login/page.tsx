@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/lib/toast";
 import api from "@/lib/axios";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import logo from "../../../public/logos/onushilon-logo.png";
 
 
 type Mode = "login" | "register";
@@ -172,13 +174,25 @@ export default function LoginPage() {
         <div className="min-h-screen flex items-center justify-center bg-[--background] p-4">
             <div className="w-full max-w-md">
                 <div className="card p-8">
-                    <div className="text-center mb-6">
-                        <h1 className="text-2xl font-bold mb-1">
-                            {mode === "login" ? "Asif Sir Coaching (Demo)" : "Parent Registration"}
-                        </h1>
+                    <div className="text-center mb-2">
+                        {mode === "login" && (
+                            <div className="mb-3 flex justify-center">
+                                <Image
+                                    src={logo}
+                                    alt="Onushilon logo"
+                                    // width={50}
+                                    // height={50}
+                                    className="h-20 w-50 object-contain"
+                                    priority
+                                />
+                            </div>
+                        )}
+                        {/* <h1 className="text-2xl font-bold mb-1">
+                            {mode === "login" ? "Onushilon Academy" : "Parent Registration"}
+                        </h1> */}
                         <p className="text-[--muted-foreground] text-sm">
                             {mode === "login"
-                                ? "Sign in to your CampusBaba account"
+                                ? "Sign in to your Onushilon account"
                                 : "Create a parent account to access the portal"}
                         </p>
                     </div>
@@ -356,7 +370,7 @@ export default function LoginPage() {
                     </div>
                 </div>
             </div>
-            <div className="fixed bottom-4 bg-white border-dashed border-2 p-2 rounded-sm text-xs max-w-sm z-50">
+            {/* <div className="fixed bottom-4 bg-white border-dashed border-2 p-2 rounded-sm text-xs max-w-sm z-50">
                 <h3 className="font-semibold text-center">Roles Credentials</h3>
                 <table className="w-full text-left">
                     <thead>
@@ -389,7 +403,7 @@ export default function LoginPage() {
                         </tr>
                     </tbody>
                 </table>
-            </div>
+            </div> */}
         </div>
     );
 }
