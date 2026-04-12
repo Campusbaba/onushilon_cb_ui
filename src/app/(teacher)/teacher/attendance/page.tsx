@@ -1,0 +1,225 @@
+﻿"use client";
+import { useState, useEffect } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { Header } from "@/components/layout/Header";
+import { DataTable } from "@/components/datatable/DataTable";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FormDialog } from "@/components/reusable/FormDialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
+import { useAttendance } from "@/hooks/useAttendance";
+import { useStudents } from "@/hooks/useStudents";
+import { useClassRooms } from "@/hooks/useClassRooms";
+import { useAuth } from "@/hooks/useAuth";
+import { Attendance, Student } from "@/types/viewModels";
+import { formatDate } from "@/lib/utils";
+import { ClipboardList, History } from "lucide-react";
+
+type AttendanceMark = "present" | "absent" | "late" | "excused";
+
+const statusOptions = [
+    { value: "present", label: "Present" },
+    { value: "absent", label: "Absent" },
+    { value: "late", label: "Late" },
+    { value: "excused", label: "Excused" },
+];
+
+export default function TeacherAttendancePage() {
+    const { referenceId, user } = useAuth();
+    const { attendances, loading: histLoading, fetchAttendances, createAttendance } = useAttendance({}, false);
+    const { students, fetchStudents, loading: studLoading } = useStudents({}, false);
+    const { classRooms: assignedClassRooms } = useClassRooms({}, true, referenceId ?? undefined);
+
+    const [activeTab, setActiveTab] = useState<"mark" | "history">("mark");
+    const [selectedClassRoomId, setSelectedClassRoomId] = useState<string>("");
+    const [markingStudent, setMarkingStudent] = useState<Student | null>(null);
+    const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
+    const [markStatus, setMarkStatus] = useState<AttendanceMark>("present");
+    const [markRemarks, setMarkRemarks] = useState("");
+    const [historyDate, setHistoryDate] = useState("");
+    const [historyClassRoomId, setHistoryClassRoomId] = useState<string>("");
+    const [busy, setBusy] = useState(false);
+
+    // Auto-select first classroom once available
+    useEffect(() => {
+        if (assignedClassRooms.length > 0 && !selectedClassRoomId) {
+            setSelectedClassRoomId(assignedClassRooms[0]._id);
+            setHistoryClassRoomId(assignedClassRooms[0]._id);
+        }
+    }, [assignedClassRooms, selectedClassRoomId]);
+
+    // Fetch students for selected classroom
+    useEffect(() => {
+        if (!selectedClassRoomId) return;
+        fetchStudents({ classRoomId: selectedClassRoomId, limit: 200 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedClassRoomId]);
+
+    // Fetch history filtered to teacher's classroom + optional date
+    useEffect(() => {
+        if (!historyClassRoomId) return;
+        const params: Record<string, unknown> = { classRoomId: historyClassRoomId, limit: 200 };
+        if (historyDate) { params.startDate = historyDate; params.endDate = historyDate + "T23:59:59"; }
+        fetchAttendances(params);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [historyDate, historyClassRoomId]);
+
+    function openMarkModal(s: Student) {
+        setMarkingStudent(s);
+        setAttendanceDate(new Date().toISOString().slice(0, 10));
+        setMarkStatus("present");
+        setMarkRemarks("");
+    }
+
+    async function handleMarkSubmit() {
+        if (!markingStudent) return;
+        setBusy(true);
+        try {
+            await createAttendance({
+                studentId: markingStudent._id,
+                classRoomId: typeof markingStudent.classRoomId === "object"
+                    ? (markingStudent.classRoomId as { _id: string })._id
+                    : (markingStudent.classRoomId as string),
+                date: attendanceDate,
+                status: markStatus,
+                ...(markRemarks ? { remarks: markRemarks } : {}),
+                ...(user ? {
+                    markedBy: user.role,
+                } : {}),
+            });
+            toast.success(`Attendance saved for ${markingStudent.firstName} ${markingStudent.lastName}`);
+            setMarkingStudent(null);
+        } catch {
+            toast.error("Failed to save attendance");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    const studentColumns: ColumnDef<Student, unknown>[] = [
+        { id: "name", header: "Student", accessorFn: r => `${r.firstName} ${r.lastName}` },
+        { id: "studentId", accessorKey: "studentId", header: "Student ID" },
+        {
+            id: "status", accessorKey: "status", header: "Status",
+            cell: ({ getValue }) => <Badge variant={String(getValue()) === "active" ? "default" : "secondary"}>{String(getValue())}</Badge>,
+        },
+        {
+            id: "actions", header: "",
+            cell: ({ row: { original: s } }) => (
+                <Button size="sm" variant="outline" onClick={() => openMarkModal(s)}>
+                    <ClipboardList size={13} className="mr-1" /> Mark
+                </Button>
+            ),
+        },
+    ];
+
+    const historyColumns: ColumnDef<Attendance, unknown>[] = [
+        { id: "student", header: "Student", accessorFn: r => { const s = r.studentId; return typeof s === "object" ? `${(s as { firstName: string; lastName: string }).firstName} ${(s as { firstName: string; lastName: string }).lastName}` : String(s); } },
+        { id: "date", header: "Date", accessorFn: r => formatDate(r.date) },
+        { id: "status", header: "Status", accessorKey: "status", cell: ({ getValue }) => <Badge variant={String(getValue()) === "present" ? "default" : "destructive"}>{String(getValue())}</Badge> },
+        { id: "remarks", accessorKey: "remarks", header: "Remarks" },
+    ];
+
+    return (
+        <>
+            <Header title="Attendance" />
+            <main className="p-5 space-y-4">
+                {/* Tabs */}
+                <div className="flex gap-2 border-b pb-3">
+                    <Button variant={activeTab === "mark" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("mark")}>
+                        <ClipboardList size={14} className="mr-1" /> Mark Attendance
+                    </Button>
+                    <Button variant={activeTab === "history" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("history")}>
+                        <History size={14} className="mr-1" /> History
+                    </Button>
+                </div>
+
+                {/* Mark Attendance Tab */}
+                {activeTab === "mark" && (
+                    <div className="space-y-4">
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Classroom</Label>
+                                <Select value={selectedClassRoomId} onValueChange={setSelectedClassRoomId}
+                                    disabled={assignedClassRooms.length === 0}>
+                                    <SelectTrigger className="w-52">
+                                        <SelectValue placeholder={assignedClassRooms.length === 0 ? "No assigned classes" : "Select classroom"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {assignedClassRooms.map(cr => <SelectItem key={cr._id} value={cr._id}>{cr.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        {studLoading
+                            ? <div className="card p-10 text-center text-sm text-[--muted-foreground]">Loading…</div>
+                            : <DataTable data={students} columns={studentColumns} title="Students" exportFilename="students" />}
+                    </div>
+                )}
+
+                {/* History Tab */}
+                {activeTab === "history" && (
+                    <div className="space-y-4">
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Classroom</Label>
+                                <Select value={historyClassRoomId} onValueChange={setHistoryClassRoomId}
+                                    disabled={assignedClassRooms.length === 0}>
+                                    <SelectTrigger className="w-52"><SelectValue placeholder="Select classroom" /></SelectTrigger>
+                                    <SelectContent>
+                                        {assignedClassRooms.map(cr => <SelectItem key={cr._id} value={cr._id}>{cr.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Filter by Date</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input type="date" value={historyDate} onChange={e => setHistoryDate(e.target.value)} className="w-44" />
+                                    {historyDate && <Button variant="ghost" size="sm" onClick={() => setHistoryDate("")}>Clear</Button>}
+                                </div>
+                            </div>
+                            <p className="text-sm text-[--muted-foreground] pb-1">{attendances.length} records</p>
+                        </div>
+                        {histLoading
+                            ? <div className="card p-10 text-center text-sm text-[--muted-foreground]">Loading…</div>
+                            : <DataTable data={attendances} columns={historyColumns} title="Attendance History" exportFilename="teacher-attendance-history" />}
+                    </div>
+                )}
+            </main>
+
+            {/* Per-student Mark Modal */}
+            <FormDialog
+                open={!!markingStudent}
+                onClose={() => setMarkingStudent(null)}
+                title={markingStudent ? `Mark Attendance – ${markingStudent.firstName} ${markingStudent.lastName}` : ""}
+            >
+                <div className="space-y-4">
+                    <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Date *</Label>
+                        <Input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="w-44" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Status *</Label>
+                        <Select value={markStatus} onValueChange={v => setMarkStatus(v as AttendanceMark)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {statusOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Remarks</Label>
+                        <Input placeholder="Optional" value={markRemarks} onChange={e => setMarkRemarks(e.target.value)} />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" size="sm" onClick={() => setMarkingStudent(null)}>Cancel</Button>
+                        <Button size="sm" onClick={handleMarkSubmit} disabled={busy}>{busy ? "Saving…" : "Submit"}</Button>
+                    </div>
+                </div>
+            </FormDialog>
+        </>
+    );
+}
