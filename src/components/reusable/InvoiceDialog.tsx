@@ -8,6 +8,7 @@ import { formatDate, formatCurrency } from "@/lib/utils";
 import { Printer, Download, Share2, X } from "lucide-react";
 import logo from "../../../public/logos/onushilon-logo.png";
 import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface InvoiceDialogProps {
@@ -227,183 +228,49 @@ export function InvoiceDialog({ open, onClose, payment }: InvoiceDialogProps) {
 
     // ── PDF Download ──────────────────────────────────────────────────────────
     async function handleDownload() {
-        const el = document.getElementById("invoice-content");
+        const el = printRef.current;
         if (!el) return;
 
+        const imgData = await toPng(el, {
+            cacheBust: true,
+            pixelRatio: 2,
+            backgroundColor: "#ffffff",
+        });
+
         const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
         const pageWidth = pdf.internal.pageSize.getWidth();
-        const margin = 15;
-        const col = margin;
-        let y = 20;
+        const pageHeight = pdf.internal.pageSize.getHeight();
 
-        // Header
-        pdf.setFillColor(17, 17, 17);
-        pdf.roundedRect(col, y, 12, 12, 2, 2, "F");
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("S", col + 4, y + 8);
-        pdf.setTextColor(17, 17, 17);
-        pdf.setFontSize(18);
-        pdf.text("Onushilon", col + 16, y + 9);
-        pdf.setFontSize(8);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(120, 120, 120);
-        pdf.text("Education Management System", col + 16, y + 14);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new window.Image();
+        img.src = imgData;
 
-        // Invoice label (right)
-        pdf.setFontSize(22);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(17, 17, 17);
-        pdf.text("INVOICE", pageWidth - margin, y + 9, { align: "right" });
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(inv, pageWidth - margin, y + 15, { align: "right" });
+        await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                ctx?.drawImage(img, 0, 0);
+                resolve();
+            };
+            img.onerror = () => reject(new Error("Failed to load invoice image for PDF export"));
+        });
 
-        y += 28;
-        pdf.setDrawColor(220, 220, 220);
-        pdf.line(col, y, pageWidth - margin, y);
-        y += 8;
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        // Bill To
-        pdf.setFontSize(7);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(150, 150, 150);
-        pdf.text("BILL TO", col, y);
-        pdf.setFontSize(11);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(17, 17, 17);
-        const name = student ? `${student.firstName} ${student.lastName}` : String(p.studentId);
-        pdf.text(name, col, y + 7);
-        if (student?.studentId) {
-            pdf.setFontSize(9);
-            pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(100, 100, 100);
-            pdf.text(`ID: ${student.studentId}`, col, y + 13);
-            pdf.text(student.email ?? "", col, y + 19);
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+            heightLeft -= pageHeight;
         }
-
-        // Invoice details (right column)
-        const details: [string, string][] = [
-            ["Issue Date", formatDate(p.createdAt)],
-            ["Due Date", formatDate(p.dueDate)],
-            ...(p.paidDate ? [["Paid Date", formatDate(p.paidDate)] as [string, string]] : []),
-            ["Academic Year", p.academicYear],
-            ["Semester", p.semester],
-        ];
-        let dy = y;
-        for (const [label, val] of details) {
-            pdf.setFontSize(8);
-            pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(120, 120, 120);
-            pdf.text(label, pageWidth - margin - 50, dy);
-            pdf.setTextColor(17, 17, 17);
-            pdf.setFont("helvetica", "bold");
-            pdf.text(val, pageWidth - margin, dy, { align: "right" });
-            dy += 6;
-        }
-
-        y += 32;
-
-        // Table header
-        pdf.setFillColor(17, 17, 17);
-        pdf.roundedRect(col, y, pageWidth - margin * 2, 10, 2, 2, "F");
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Description", col + 3, y + 6.5);
-        pdf.text("Course", col + 70, y + 6.5);
-        pdf.text("Method", col + 110, y + 6.5);
-        pdf.text("Amount", pageWidth - margin - 3, y + 6.5, { align: "right" });
-        y += 14;
-
-        // Table row
-        pdf.setTextColor(17, 17, 17);
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(`${p.paymentType.charAt(0).toUpperCase() + p.paymentType.slice(1)} Fee`, col + 3, y);
-        pdf.setFontSize(8);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(120, 120, 120);
-        pdf.text(`Payment for ${p.semester}`, col + 3, y + 5);
-
-        const course = getCourse(p);
-        pdf.setTextColor(17, 17, 17);
-        pdf.setFontSize(9);
-        pdf.text(course?.name ?? "—", col + 70, y);
-        if (course?.code) {
-            pdf.setFontSize(7);
-            pdf.setTextColor(120, 120, 120);
-            pdf.text(course.code, col + 70, y + 5);
-        }
-        pdf.setFontSize(9);
-        pdf.setTextColor(17, 17, 17);
-        pdf.text(p.paymentMethod ?? "—", col + 110, y);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(10);
-        pdf.text(formatCurrency(p.amount), pageWidth - margin - 3, y, { align: "right" });
-
-        y += 14;
-        pdf.setDrawColor(220, 220, 220);
-        pdf.line(col, y, pageWidth - margin, y);
-        y += 10;
-
-        // Total
-        const totalX = pageWidth - margin - 60;
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(120, 120, 120);
-        pdf.text("Subtotal", totalX, y);
-        pdf.text(formatCurrency(p.amount), pageWidth - margin, y, { align: "right" });
-        y += 6;
-        pdf.text("Tax / Discount", totalX, y);
-        pdf.text("—", pageWidth - margin, y, { align: "right" });
-        y += 4;
-        pdf.setDrawColor(220, 220, 220);
-        pdf.line(totalX, y, pageWidth - margin, y);
-        y += 6;
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(17, 17, 17);
-        pdf.text("Total", totalX, y);
-        pdf.text(formatCurrency(p.amount), pageWidth - margin, y, { align: "right" });
-
-        if (p.paymentStatus === "paid") {
-            y += 8;
-            pdf.setFillColor(236, 253, 245);
-            pdf.roundedRect(totalX - 2, y, pageWidth - margin - totalX + 2, 8, 2, 2, "F");
-            pdf.setFontSize(9);
-            pdf.setFont("helvetica", "bold");
-            pdf.setTextColor(5, 150, 105);
-            pdf.text("✓ Payment Received", (totalX + pageWidth - margin) / 2, y + 5.5, { align: "center" });
-        }
-
-        // Remarks
-        if (p.remarks) {
-            y += 16;
-            pdf.setFillColor(248, 248, 248);
-            pdf.roundedRect(col, y, pageWidth - margin * 2, 14, 2, 2, "F");
-            pdf.setFontSize(7);
-            pdf.setFont("helvetica", "bold");
-            pdf.setTextColor(150, 150, 150);
-            pdf.text("REMARKS", col + 3, y + 5);
-            pdf.setFontSize(9);
-            pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(80, 80, 80);
-            pdf.text(p.remarks, col + 3, y + 11);
-        }
-
-        // Footer
-        const footerY = pdf.internal.pageSize.getHeight() - 15;
-        pdf.setDrawColor(220, 220, 220);
-        pdf.line(col, footerY - 4, pageWidth - margin, footerY - 4);
-        pdf.setFontSize(7);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Generated by Onushilon · ${new Date().toLocaleDateString()}`, col, footerY);
-        pdf.text(inv, pageWidth - margin, footerY, { align: "right" });
 
         pdf.save(`${inv}.pdf`);
     }
