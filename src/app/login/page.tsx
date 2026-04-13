@@ -364,7 +364,7 @@ export default function LoginPage() {
                         <p>CampusBaba - Your Campus Portal</p>
                         {mode === "login" && (
                             <>
-                                <p className="mt-0.5">Powered by <a href="https://campusbaba.com" className="text-[--primary] hover:underline" target="_blank" rel="noopener noreferrer">campusbaba.com</a></p>
+                                <p className="mt-0.5">Powered by <a href="https://campusbaba.com" className="text-[--primary] hover:underline animate-pulse" target="_blank" rel="noopener noreferrer">campusbaba.com</a></p>
                             </>
                         )}
                     </div>
