@@ -61,6 +61,11 @@ const emergencyFields: { key: keyof TF; label: string; type: string; required: b
 
 const genderOptions = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }];
 const statusOptions = [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "on-leave", label: "On Leave" }];
+const DEFAULT_ADMIN_EMAIL = (process.env.NEXT_PUBLIC_DEFAULT_ADMIN_EMAIL || "admin@campusbaba.com").toLowerCase();
+
+function isProtectedDefaultAdmin(employee: Employee | null | undefined): boolean {
+    return !!employee?.email && employee.email.toLowerCase() === DEFAULT_ADMIN_EMAIL;
+}
 
 export default function EmployeesPage() {
     const { employees, loading, pagination, createEmployee, updateEmployee, deleteEmployee } = useEmployees();
@@ -111,7 +116,13 @@ export default function EmployeesPage() {
         } catch { toast.error("Failed to save"); } finally { setBusy(false); }
     }
     async function handleDelete() {
-        if (!confirm) return; setBusy(true);
+        if (!confirm) return;
+        if (isProtectedDefaultAdmin(confirm)) {
+            toast.error("Default admin cannot be deleted");
+            setConfirm(null);
+            return;
+        }
+        setBusy(true);
         try { await deleteEmployee(confirm._id); toast.success("Employee deleted"); setConfirm(null); }
         catch { toast.error("Failed to delete"); } finally { setBusy(false); }
     }
@@ -146,7 +157,32 @@ export default function EmployeesPage() {
         { id: "status", header: "Status", accessorKey: "status", cell: ({ getValue }) => <Badge variant={String(getValue()) === "active" ? "default" : "secondary"}>{String(getValue())}</Badge> },
         { id: "createdAt", header: "Created", accessorFn: r => formatDate(r.createdAt) },
         { id: "updatedAt", header: "Updated", accessorFn: r => formatDate(r.updatedAt) },
-        { id: "actions", header: "", cell: ({ row: { original: r } }) => (<div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil size={13} /></Button><Button variant="ghost" size="icon" className="text-[--danger]" onClick={() => setConfirm(r)}><Trash2 size={13} /></Button></div>) },
+        {
+            id: "actions", header: "", cell: ({ row: { original: r } }) => {
+                const protectedAdmin = isProtectedDefaultAdmin(r);
+                return (
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil size={13} /></Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-[--danger] disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => {
+                                if (protectedAdmin) {
+                                    toast.error("Default admin cannot be deleted");
+                                    return;
+                                }
+                                setConfirm(r);
+                            }}
+                            disabled={protectedAdmin}
+                            title={protectedAdmin ? "Default admin cannot be deleted" : "Delete employee"}
+                        >
+                            <Trash2 size={13} />
+                        </Button>
+                    </div>
+                );
+            }
+        },
     ];
 
     return (
