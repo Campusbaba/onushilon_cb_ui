@@ -160,22 +160,20 @@ export default function EmployeesPage() {
         {
             id: "actions", header: "", cell: ({ row: { original: r } }) => {
                 const protectedAdmin = isProtectedDefaultAdmin(r);
+
+                if (protectedAdmin) {
+                    return null;
+                }
+
                 return (
                     <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil size={13} /></Button>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="text-[--danger] disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => {
-                                if (protectedAdmin) {
-                                    toast.error("Default admin cannot be deleted");
-                                    return;
-                                }
-                                setConfirm(r);
-                            }}
-                            disabled={protectedAdmin}
-                            title={protectedAdmin ? "Default admin cannot be deleted" : "Delete employee"}
+                            className="text-[--danger]"
+                            onClick={() => setConfirm(r)}
+                            title="Delete employee"
                         >
                             <Trash2 size={13} />
                         </Button>
